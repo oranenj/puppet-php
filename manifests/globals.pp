@@ -10,11 +10,15 @@
 #
 # [*fpm_pid_file*]
 #   Path to pid file for fpm
+#
+# [*use_scl*]
+#   If set to true, assume RedHat SCL repositories are available.
 
 class php::globals (
-  Optional[Pattern[/^[57].[0-9]/]] $php_version = undef,
-  Optional[Stdlib::Absolutepath] $config_root   = undef,
-  Optional[Stdlib::Absolutepath] $fpm_pid_file  = undef,
+  Optional[Pattern[/^[57].[0-9]/]] $php_version  = undef,
+  Optional[Stdlib::Absolutepath] $config_root    = undef,
+  Optional[Stdlib::Absolutepath] $fpm_pid_file   = undef,
+  Boolean                        $use_scl        = false,
 ) {
 
   $default_php_version = $facts['os']['name'] ? {
@@ -106,8 +110,27 @@ class php::globals (
       }
     }
     'RedHat': {
-      $default_config_root  = '/etc'
-      $default_fpm_pid_file = '/var/run/php-fpm/php-fpm.pid'
+      if $use_scl {
+        if $globals_php_version == $default_php_version {
+	  fail("You must provide php::globals::php_version when using RedHat SCL")
+	}
+
+        $version_parts = split($globals_php_version, '[.]')
+        $dotless_version = "${version_parts[0]}${version_parts[1]}"
+        # scl prefix
+        $_sp = "rh-php${dotless_version}"
+        $default_config_root  = "/etc/opt/rh/${_sp}"
+        $package_prefix       = "${_sp}-php-"
+        $default_fpm_pid_file = "/var/opt/rh/${_sp}/run/php-fpm/php-fpm.pid"
+        $fpm_error_log        = "/var/opt/rh/${_sp}/log/php-fpm/php-fpm.log"
+        $fpm_service_name     = "${_sp}-php-fpm"
+      } else {
+        $default_config_root  = '/etc'
+        $default_fpm_pid_file = '/var/run/php-fpm/php-fpm.pid'
+	$package_prefix       = 'php-'
+	$fpm_service_name     = 'php-fpm'
+	$fpm_error_log        = '/var/log/php-fpm/php-fpm.log'
+      }
     }
     'FreeBSD': {
       $default_config_root  = '/usr/local/etc'
